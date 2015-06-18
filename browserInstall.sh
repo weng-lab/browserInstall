@@ -833,6 +833,9 @@ trap errorHandler ERR
 
 # OPTION PARSING
 
+DOWNLOAD_MYSQL="yes"
+DOWNLOAD_GBDB="yes"
+
 while getopts ":baut:hof" opt; do
   case $opt in
     h)
@@ -876,6 +879,8 @@ options:
          through the internet, if it is not available locally. The default mode
          unless an assembly has been provided during install
   -h   - this help message
+  -M   - do not download MySQL files
+  -G   - do not download gbdb files
 EOF
       exit 0
       ;;
@@ -933,6 +938,12 @@ EOF
       echo On-the-fly mode activated: data is loaded from UCSC when not present locally.
       echo Use the parameter -o to switch to offline mode.
       exit 0
+      ;;
+     M)
+      DOWNLOAD_MYSQL="no"
+      ;;
+     G)
+      DOWNLOAD_GBDB="no"
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
@@ -1201,13 +1212,17 @@ fi
 # rsync is doing globbing itself, so switch it off temporarily
 set -f
 # use rsync to get total size of files in directories and sum the numbers up with awk
-for db in $MYSQLDBS; do
-    rsync -avn $HGDOWNLOAD::mysql/$db/ $MYSQLDIR/$db/ $RSYNCOPTS | grep ^'total size' | cut -d' ' -f4 | tr -d ', ' 
-done | awk '{ sum += $1 } END { print "| Required space in '$MYSQLDIR':", sum/1000000000, "GB" }'
+if [ "$DOWNLOAD_MYSQL" == "yes" ]; then
+    for db in $MYSQLDBS; do
+        rsync -avn $HGDOWNLOAD::mysql/$db/ $MYSQLDIR/$db/ $RSYNCOPTS | grep ^'total size' | cut -d' ' -f4 | tr -d ', ' 
+    done | awk '{ sum += $1 } END { print "| Required space in '$MYSQLDIR':", sum/1000000000, "GB" }'
+fi
 
-for db in $DBS; do
-    rsync -avn $HGDOWNLOAD::gbdb/$db/ $GBDBDIR/$db/ $RSYNCOPTS | grep ^'total size' | cut -d' ' -f4 | tr -d ','
-done | awk '{ sum += $1 } END { print "| Required space in '$GBDBDIR':", sum/1000000000, "GB" }'
+if [ "$DOWNLOAD_GBDB" == "yes" ]; then
+    for db in $DBS; do
+        rsync -avn $HGDOWNLOAD::gbdb/$db/ $GBDBDIR/$db/ $RSYNCOPTS | grep ^'total size' | cut -d' ' -f4 | tr -d ','
+    done | awk '{ sum += $1 } END { print "| Required space in '$GBDBDIR':", sum/1000000000, "GB" }'
+fi
 
 echo2
 echo2 Currently available disk space on this system:
@@ -1228,19 +1243,23 @@ echo2
 waitKey
 
 # now do the actual download of mysql files
-for db in $MYSQLDBS; do
-   echo2 Downloading Mysql files for mysql database $db
-   $RSYNC --progress -avzp $RSYNCOPTS $HGDOWNLOAD::mysql/$db/ $MYSQLDIR/$db/ 
-   chown -R $MYSQLUSER:$MYSQLUSER $MYSQLDIR/$db
-done
+if [ "$DOWNLOAD_MYSQL" == "yes" ]; then
+    for db in $MYSQLDBS; do
+        echo2 Downloading Mysql files for mysql database $db
+        $RSYNC --progress -avzp $RSYNCOPTS $HGDOWNLOAD::mysql/$db/ $MYSQLDIR/$db/ 
+        chown -R $MYSQLUSER:$MYSQLUSER $MYSQLDIR/$db
+    done
+fi
 
 # download /gbdb files
-for db in $DBS; do
-   echo2 Downloading $GBDBDIR files for assembly $db
-   mkdir -p $GBDBDIR
-   $RSYNC --progress -avzp $RSYNCOPTS $HGDOWNLOAD::gbdb/$db/ $GBDBDIR/$db/
-   chown -R $APACHEUSER:$APACHEUSER $GBDBDIR/$db
-done
+if [ "$DOWNLOAD_GBDB" == "yes" ]; then
+    for db in $DBS; do
+        echo2 Downloading $GBDBDIR files for assembly $db
+        mkdir -p $GBDBDIR
+        $RSYNC --progress -avzp $RSYNCOPTS $HGDOWNLOAD::gbdb/$db/ $GBDBDIR/$db/
+        chown -R $APACHEUSER:$APACHEUSER $GBDBDIR/$db
+    done
+fi
 
 set +f
 
