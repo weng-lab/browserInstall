@@ -836,7 +836,7 @@ trap errorHandler ERR
 DOWNLOAD_MYSQL="yes"
 DOWNLOAD_GBDB="yes"
 
-while getopts ":baut:hof" opt; do
+while getopts ":baut:hofMG" opt; do
   case $opt in
     h)
       cat <<EOF
